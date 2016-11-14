@@ -17,5 +17,5 @@ interpret s = case pProgram (myLexer s) of
     Bad err -> err
     Ok  tree ->
         let (_, s) = runState (execProgram tree) initEnv
-        in unlines (output s)
+        in unlines (outputs s)
 

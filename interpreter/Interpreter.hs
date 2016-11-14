@@ -21,37 +21,42 @@ exec s = case s of
   SDefi t assmts -> do
     -- TODO(leasunhy): add type checking!
     forEach assmts (\(Assign x e) -> do v <- eval e
-                                        defineVar x v)
+                                        defineVar x (Just v))
   SPrint e -> do
     v <- eval e
-    output (show v)
-  SAssign Assign x e -> do
+    case v of
+      VInt i -> output (show i)
+      VFlo f -> output (show f)
+      VStr s -> output s
+  SAssign (Assign x e) -> do
     v <- eval e
     updateVar x v
   SWhile cond body -> do
-    continue <- evalBoolean cond
-    if continue then
-        eval body
+    continue <- evalBool cond
+    if continue then do
+        exec body
         exec s
     else return ()
   SIf cond body -> do
-    condtrue <- evalBoolean cond
+    condtrue <- evalBool cond
     if condtrue then exec body else return ()
   SIfElse cond tbody fbody -> do
-    condtrue <- evalBoolean cond
+    condtrue <- evalBool cond
     if condtrue then exec tbody else exec fbody
   SBlock stms -> do
     pushCtx
     forEach stms exec
     popCtx
-  SExp exp -> eval exp
+  SExp exp -> do
+    eval exp
+    return ()
   SEmpty -> return ()
 
-evalBoolean :: Exp -> Action Boolean
-evalBoolean e = do
+evalBool :: Exp -> Action Bool
+evalBool e = do
   val <- eval e
   case val of
-    VInt int  -> return (int \= 0)
+    VInt int  -> return (int /= 0)
     otherwise -> return (True)
 
 eval :: Exp -> Action Value
@@ -64,22 +69,22 @@ eval e = case e of
   EVar v   -> lookupVar v
   EPoInc v -> do
     orival <- lookupVar v
-    newval <- incval v
+    newval <- incval orival
     updateVar v newval
     return (orival)
   EPoDec v -> do
     orival <- lookupVar v
-    newval <- decval v
+    newval <- decval orival
     updateVar v newval
     return (orival)
   EPrInc v -> do
     orival <- lookupVar v
-    newval <- incval v
+    newval <- incval orival
     updateVar v newval
     return (newval)
   EPrDec v -> do
     orival <- lookupVar v
-    newval <- decval v
+    newval <- decval orival
     updateVar v newval
     return (newval)
   ENegate e -> do
@@ -169,33 +174,33 @@ eval e = case e of
       ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 /= s2)
       otherwise -> error "operand type mismatch"
   EConj exp1 exp2 -> do
-    v1 <- evalBoolean exp1
-    v2 <- evalBoolean exp2
+    v1 <- evalBool exp1
+    v2 <- evalBool exp2
     return (booltoVInt $ v1 && v2)
   EDisj exp1 exp2 -> do
-    v1 <- evalBoolean exp1
-    v2 <- evalBoolean exp2
+    v1 <- evalBool exp1
+    v2 <- evalBool exp2
     return (booltoVInt $ v1 || v2)
   EAssign (Assign v e) -> do
     val <- eval e
     updateVar v val
     return (val)
 
-booltoVInt :: Boolean -> Action VInt
-booltoVInt True  -> return (VInt 1)
-booltoVInt False -> return (VInt 0)
+booltoVInt :: Bool -> Value
+booltoVInt True  = VInt 1
+booltoVInt False = VInt 0
 
 incval :: Value -> Action Value
 incval v = case v of
-  VInt n = return (VInt (n + 1))
-  VStr s = error "type error"
-  VFlo n = return (VFlo (n + 1.0))
+  VInt n -> return (VInt (n + 1))
+  VStr s -> error "type error"
+  VFlo n -> return (VFlo (n + 1.0))
 
 decval :: Value -> Action Value
 decval v = case v of
-  VInt n = return (VInt (n - 1))
-  VStr s = error "type error"
-  VFlo n = return (VFlo (n - 1.0))
+  VInt n -> return (VInt (n - 1))
+  VStr s -> error "type error"
+  VFlo n -> return (VFlo (n - 1.0))
 
 -- Actions: functions with side effects on a state
 
@@ -238,10 +243,10 @@ popCtx = modify (\s -> s{contexts = tail $ contexts s})
 lookupCtx :: Var -> Action (Either ([Context], Context, [Context]) (Context, [Context]))
 lookupCtx x = do
   cons <- gets contexts
-  (inits, remains) <- span (Map.notMember x) cons
-  case remains of
-    (context:tails) -> return (Left  (inits, context, tails))
-    []              -> return (Right (head cons, tail cons))
+  let (inits, remains) = span (Map.notMember x) cons in
+    case remains of
+      (context:tails) -> return (Left  (inits, context, tails))
+      []              -> return (Right (head cons, tail cons))
 
 -- define a variable
 defineVar :: Var -> Maybe Value -> Action Void
@@ -251,7 +256,8 @@ defineVar x mv = modify (\s ->
 -- update the value of a variable
 updateVar :: Var -> Value -> Action Void
 updateVar x v = do
-  case lookupCtx x of
+  cons <- lookupCtx x
+  case cons of
     Left  (inits, context, tails) ->
         modify (\s -> s{contexts = inits ++ ((Map.insert x (Just v) context) : tails)})
     Right (context, tails) ->
@@ -260,10 +266,11 @@ updateVar x v = do
 -- lookup the value of a variable
 lookupVar :: Var -> Action Value
 lookupVar x = do
-  case lookupCtx x of
+  cons <- lookupCtx x
+  case cons of
     Left (_, context, _) -> case Map.lookup x context of
                               Just (Just v)  -> return v
-                              otherwise -> error "uninitialized variable: " ++ show x
+                              otherwise -> error $ "uninitialized variable: " ++ show x
     Right _              -> error $ "uninitialized variable: " ++ show x
 
 -- generate output
