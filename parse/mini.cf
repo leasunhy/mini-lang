@@ -1,0 +1,68 @@
+comment "//" ;
+
+PStms.   Program ::= [Stm] ;
+
+TDouble.  Type ::= "double" ;
+TInt.     Type ::= "int"    ;
+TString.  Type ::= "string" ;
+TBool.    Type ::= "bool"   ;
+TVoid.    Type ::= "void"   ;
+
+SDefi.   Stm ::= Type [Assign]  ";" ;
+SDecl.   Stm ::= Type [Var]   ";" ;
+SPrint.  Stm ::= "print" Exp    ";" ;
+SAssign. Stm ::= Assign         ";" ;
+
+SWhile.  Stm ::= "while" "(" Exp ")" Stm;
+SIf.     Stm ::= "if" "(" Exp ")" Stm;
+SIfElse. Stm ::= "if" "(" Exp ")" Stm "else" Stm ;
+SBlock.  Stm ::= "{" [Stm] "}"  ;
+SExp.    Stm ::= Exp ";"        ;
+SEmpty.  Stm ::= ";"            ;
+
+terminator Stm "" ;
+
+Assign.  Assign ::= Var "=" Exp  ;
+separator Assign "," ;
+
+Var.     Var   ::= Ident;
+separator Var ",";
+
+EILit.   Exp15 ::= Integer;
+EFLit.   Exp15 ::= Double;
+ESLit.   Exp15 ::= String;
+EBTLit.  Exp15 ::= "true";
+EBFLit.  Exp15 ::= "false";
+EVar.    Exp15 ::= Var;
+
+EPoInc.  Exp14 ::= Var "++";
+EPoDec.  Exp14 ::= Var "--";
+
+EPrInc.  Exp14 ::= "++" Var;
+EPrDec.  Exp14 ::= "--" Var;
+
+-- what should be the precedence level of the rightmost exp?
+ENegate. Exp13 ::= "-" Exp14;
+
+EMul.    Exp12 ::= Exp12 "*" Exp13 ;
+EDiv.    Exp12 ::= Exp12 "/" Exp13 ;
+
+EAdd.    Exp11 ::= Exp11  "+"  Exp12;
+ESub.    Exp11 ::= Exp11  "-"  Exp12;
+
+EOrdLT.  Exp9 ::= Exp9 "<"  Exp11 ;
+EOrdLE.  Exp9 ::= Exp9 "<=" Exp11 ;
+EOrdGT.  Exp9 ::= Exp9 ">"  Exp11 ;
+EOrdGE.  Exp9 ::= Exp9 ">=" Exp11 ;
+
+EOrdEQ.  Exp8 ::= Exp8 "==" Exp9;
+EOrdNE.  Exp8 ::= Exp8 "!=" Exp9;
+
+EConj.   Exp4 ::= Exp4 "&&" Exp8 ;
+
+EDisj.   Exp3 ::= Exp3 "||" Exp4 ;
+
+EAssign. Exp2 ::= Assign;
+
+coercions Exp 2 ;
+
