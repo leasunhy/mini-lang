@@ -64,5 +64,5 @@ EDisj.   Exp3 ::= Exp3 "||" Exp4 ;
 
 EAssign. Exp2 ::= Assign;
 
-coercions Exp 2 ;
+coercions Exp 15 ;
 
