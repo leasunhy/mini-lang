@@ -2,11 +2,7 @@ comment "//" ;
 
 PStms.   Program ::= [Stm] ;
 
-TDouble.  Type ::= "double" ;
-TInt.     Type ::= "int"    ;
-TString.  Type ::= "string" ;
-TBool.    Type ::= "bool"   ;
-TVoid.    Type ::= "void"   ;
+rules Type ::= "double" | "int" | "string" | "bool" | "void";
 
 SDefi.   Stm ::= Type [Assign]  ";" ;
 SDecl.   Stm ::= Type [Var]   ";" ;
