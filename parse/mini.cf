@@ -24,6 +24,10 @@ separator Assign "," ;
 Var.     Var   ::= Ident;
 separator Var ",";
 
+VInt.    Value ::= Integer;
+VFlo.    Value ::= Double;
+VStr.    Value ::= String;
+
 EILit.   Exp15 ::= Integer;
 EFLit.   Exp15 ::= Double;
 ESLit.   Exp15 ::= String;
