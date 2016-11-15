@@ -13,6 +13,10 @@ execProgram :: Program -> Action Void
 execProgram p = case p of
   PStms ss -> do
     forEach ss exec
+    maybemain <- lookupFun (Ident "main")
+    case maybemain of
+      Just fun -> do invokeFun (Ident "main") []; return ()
+      Nothing  -> return ()
 
 exec :: Stm -> Action Void
 exec s = case s of
@@ -33,9 +37,9 @@ exec s = case s of
     updateVar x v
   SRet exp -> do
     v <- eval exp
-    modify (\s -> s{returnval = Just v})
+    modify (\s -> s{returnval = Just v, shouldret = True})
   SVRet -> do
-    modify (\s -> s{returnval = Nothing})
+    modify (\s -> s{returnval = Nothing, shouldret = True})
   SWhile cond body -> do
     continue <- evalBool cond
     if continue then do
@@ -50,14 +54,16 @@ exec s = case s of
     if condtrue then exec tbody else exec fbody
   SBlock stms -> do
     pushCtx
+    pushFCtx
     forEach stms exec
+    popFCtx
     popCtx
   SExp exp -> do
     eval exp
     return ()
   SEmpty -> return ()
   SFunDfn rettype funname paramlist body -> do
-    return ()
+    defineFun funname (Function rettype paramlist body)
 
 evalBool :: Exp -> Action Bool
 evalBool e = do
@@ -100,6 +106,7 @@ eval e = case e of
   EBTLit   -> return (VInt 1)
   EBFLit   -> return (VInt 0)
   EVar v   -> lookupVar v
+  EFunInv funname args -> do invokeFun funname args
   EPoInc v -> do (orival, newval) <- manipVar incval v; return newval
   EPoDec v -> do (orival, newval) <- manipVar decval v; return newval
   EPrInc v -> do (orival, newval) <- manipVar incval v; return orival
@@ -201,7 +208,7 @@ type Void = ()
 type Context = Map.Map Var (Maybe Value)
 
 -- define the type of a function context
-newtype Function = Function (Type, [Param], [Stm])
+data Function = Function Type [Param] [Stm]
 
 -- define the type of a function context
 type FunContext = Map.Map Ident Function
@@ -216,14 +223,15 @@ data Env = ENV {
   contexts  :: [Context],
   outputs   :: [String],
   functxs   :: [FunContext],
-  returnval :: Maybe Value
+  returnval :: Maybe Value,
+  shouldret :: Bool
   }
 
 -- auxiliary functions
 
 -- initial environment
 initEnv :: Env
-initEnv = ENV [Map.empty] [] [Map.empty] Nothing
+initEnv = ENV [Map.empty] [] [Map.empty] Nothing False
 
 -- push a new context into the context stack
 pushCtx :: Action Void
@@ -267,6 +275,59 @@ lookupVar x = do
                               Just (Just v)  -> return v
                               otherwise -> error $ "uninitialized variable: " ++ show x
     Right _              -> error $ "uninitialized variable: " ++ show x
+
+-- push a new context into the context stack
+pushFCtx :: Action Void
+pushFCtx = modify (\s -> s{functxs = Map.empty : (functxs s)})
+
+-- pop a context from the context stack
+popFCtx :: Action Void
+popFCtx = modify (\s -> s{functxs = tail $ functxs s})
+
+-- lookup the first (innermost) context that contains the specified function
+--   if found, returns a "partition" of the context; otherwise, returns (head, tail)
+lookupFCtx :: Ident -> Action (Either ([FunContext], FunContext, [FunContext]) (FunContext, [FunContext]))
+lookupFCtx x = do
+  cons <- gets functxs
+  let (inits, remains) = span (Map.notMember x) cons in
+    case remains of
+      (context:tails) -> return (Left  (inits, context, tails))
+      []              -> return (Right (head cons, tail cons))
+
+-- define a function
+defineFun :: Ident -> Function -> Action Void
+defineFun x mv = modify (\s ->
+        s{functxs = Map.insert x mv (head $ functxs s) : (tail $ functxs s)})
+
+-- lookup a function
+lookupFun :: Ident -> Action (Maybe Function)
+lookupFun x = do
+  cons <- lookupFCtx x
+  case cons of
+    Left (_, context, _) -> return $ Map.lookup x context
+    Right _              -> return Nothing
+
+-- invoke a function
+invokeFun :: Ident -> [Exp] -> Action Value
+invokeFun funname args = do
+  maybef <- lookupFun funname
+  case maybef of
+    Just fun -> do
+      -- check the number of arguments
+      let (Function _ plist body) = fun in
+        if length args == length plist then do
+          pushCtx
+          mapM_ (\((Param t v), exp) -> do val <- eval exp; updateVar v val) $ zip plist args
+          forEach body (\stm -> do sret <- gets shouldret
+                                   if not sret then exec stm else return ())
+          popCtx
+          modify (\s -> s{shouldret = False})
+          ret <- gets returnval
+          case ret of
+            Just v -> return v
+            Nothing -> return (VInt 0)  -- dummy value
+         else error $ "invalid number of arguments given for function: " ++ show funname
+    Nothing -> error $ "undefined function: " ++ (show funname)
 
 -- generate output
 output :: String -> Action Void
