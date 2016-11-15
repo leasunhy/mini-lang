@@ -31,6 +31,11 @@ exec s = case s of
   SAssign (Assign x e) -> do
     v <- eval e
     updateVar x v
+  SRet exp -> do
+    v <- eval exp
+    modify (\s -> s{returnval = Just v})
+  SVRet -> do
+    modify (\s -> s{returnval = Nothing})
   SWhile cond body -> do
     continue <- evalBool cond
     if continue then do
@@ -51,6 +56,8 @@ exec s = case s of
     eval exp
     return ()
   SEmpty -> return ()
+  SFunDfn rettype funname paramlist body -> do
+    return ()
 
 evalBool :: Exp -> Action Bool
 evalBool e = do
@@ -190,8 +197,14 @@ type Action a = State Env a
 -- a familiar name for Action whose return value is uninteresting
 type Void = ()
 
--- define the type of a context
+-- define the type of a variable context
 type Context = Map.Map Var (Maybe Value)
+
+-- define the type of a function context
+newtype Function = Function (Type, [Param], [Stm])
+
+-- define the type of a function context
+type FunContext = Map.Map Ident Function
 
 -- iterate over a list of elementes
 forEach :: [x] -> (x -> Action Void) -> Action Void
@@ -201,14 +214,16 @@ forEach ss comp = mapM_ comp ss
 
 data Env = ENV {
   contexts  :: [Context],
-  outputs   :: [String]
+  outputs   :: [String],
+  functxs   :: [FunContext],
+  returnval :: Maybe Value
   }
 
 -- auxiliary functions
 
 -- initial environment
 initEnv :: Env
-initEnv = ENV [Map.empty] []
+initEnv = ENV [Map.empty] [] [Map.empty] Nothing
 
 -- push a new context into the context stack
 pushCtx :: Action Void
