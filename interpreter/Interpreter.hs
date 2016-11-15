@@ -59,7 +59,7 @@ evalBool e = do
     VInt int  -> return (int /= 0)
     otherwise -> return (True)
 
-manipVar :: (Value -> Value) -> Var -> Action (Value, Value)
+manipVar :: (Value -> Action Value) -> Var -> Action (Value, Value)
 manipVar func x = do
   orival <- lookupVar x
   newval <- func orival
@@ -75,6 +75,13 @@ operateOnVals forInt forFlo forStr v1 v2 = case (v1, v2) of
 returnVal :: (a -> Value) -> (a -> a -> a) -> a -> a -> Action Value
 returnVal ctor func v1 v2 = return (ctor (func v1 v2))
 
+returnVInt = returnVal VInt
+returnVFlo = returnVal VFlo
+returnVStr = returnVal VStr
+
+returnBool :: (a -> a -> Bool) -> a -> a -> Action Value
+returnBool func v1 v2 = return (booltoVInt (func v1 v2))
+
 errorVal :: String -> a -> a -> Action Value
 errorVal msg v1 v2 = error msg
 
@@ -86,10 +93,10 @@ eval e = case e of
   EBTLit   -> return (VInt 1)
   EBFLit   -> return (VInt 0)
   EVar v   -> lookupVar v
-  EPoInc v -> fst $ manipVar incval v
-  EPoDec v -> fst $ manipVar decval v
-  EPrInc v -> snd $ manipVar incval v
-  EPrDec v -> snd $ manipVar decval v
+  EPoInc v -> do (orival, newval) <- manipVar incval v; return newval
+  EPoDec v -> do (orival, newval) <- manipVar decval v; return newval
+  EPrInc v -> do (orival, newval) <- manipVar incval v; return orival
+  EPrDec v -> do (orival, newval) <- manipVar decval v; return orival
   ENegate e -> do
     val <- eval e
     case val of
@@ -102,43 +109,44 @@ eval e = case e of
     case (v1, v2) of
       ((VInt i), (VStr s)) -> return (VStr (show i ++ s))
       ((VStr s), (VInt i)) -> return (VStr (s ++ (show i)))
-      otherwise -> operateOnVals (returnVal (+)) (returnVal (+)) (returnVal (++)) v1 v2
+      otherwise -> operateOnVals (returnVal VInt (+)) (returnVal VFlo (+)) (returnVal VStr (++)) v1 v2
   ESub exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal (-)) (returnVal (-)) (errorVal "operator '-' is not defined on strings") v1 v2
+    operateOnVals (returnVInt (-)) (returnVFlo (-)) (errorVal "operator '-' is not defined on strings") v1 v2
   EMul exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal (*)) (returnVal (*)) (errorVal "operator '*' is not defined on strings") v1 v2
+    operateOnVals (returnVInt (*)) (returnVFlo (*)) (errorVal "operator '*' is not defined on strings") v1 v2
   EDiv exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal div) (returnVal (/)) (errorVal "operator '/' is not defined on strings") v1 v2
+    operateOnVals (returnVInt div) (returnVFlo (/)) (errorVal "operator '/' is not defined on strings") v1 v2
   EOrdLT exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal (<)) (returnVal (<)) (returnVal (<)) v1 v2
+    operateOnVals (returnBool (<)) (returnBool (<)) (returnBool (<)) v1 v2
   EOrdLE exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal (<=)) (returnVal (<=)) (returnVal (<=)) v1 v2
+    operateOnVals (returnBool (<=)) (returnBool (<=)) (returnBool (<=)) v1 v2
   EOrdGT exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal (>)) (returnVal (>)) (returnVal (>)) v1 v2
+    operateOnVals (returnBool (>)) (returnBool (>)) (returnBool (>)) v1 v2
   EOrdGE exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    operateOnVals (returnVal (>=)) (returnVal (>=)) (returnVal (>=)) v1 v2
+    operateOnVals (returnBool (>=)) (returnBool (>=)) (returnBool (>=)) v1 v2
   EOrdEQ exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
+    -- the values need to be in the same type to compare
     return (booltoVInt $ v1 == v2)
   EOrdNE exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    return (booltoVInt $ i1 /= i2)
+    return (booltoVInt $ v1 /= v2)
   EConj exp1 exp2 -> do
     v1 <- evalBool exp1
     if v1 then do

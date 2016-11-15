@@ -6,11 +6,16 @@ import ParMini
 
 import ErrM
 import Control.Monad.State
+import System.Environment
 
 main :: IO ()
 main = do
-    s <- getContents
-    putStrLn (interpret s)
+    args <- getArgs
+    if length args /= 1 then do
+        interact $ \s -> interpret s
+    else do
+        s <- readFile (args !! 0)
+        putStr $ interpret s
 
 interpret :: String -> String
 interpret s = case pProgram (myLexer s) of
