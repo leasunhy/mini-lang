@@ -8,13 +8,21 @@ SDefi.   Stm ::= Type [Assign]  ";" ;
 SDecl.   Stm ::= Type [Var]   ";" ;
 SPrint.  Stm ::= "print" Exp    ";" ;
 SAssign. Stm ::= Assign         ";" ;
+SRet.    Stm ::= "return" Exp ";";
+SVRet.   Stm ::= "return" ";";
 
 SWhile.  Stm ::= "while" "(" Exp ")" Stm;
 SIf.     Stm ::= "if" "(" Exp ")" Stm;
 SIfElse. Stm ::= "if" "(" Exp ")" Stm "else" Stm ;
-SBlock.  Stm ::= "{" [Stm] "}"  ;
+
 SExp.    Stm ::= Exp ";"        ;
 SEmpty.  Stm ::= ";"            ;
+
+SBlock.  Stm ::= "{" [Stm] "}"  ;
+SFunDfn. Stm ::= Type Ident "(" [Param] ")" "{" [Stm] "}" ;
+
+Param.   Param ::= Type Var;
+separator Param ",";
 
 terminator Stm "" ;
 
@@ -28,12 +36,14 @@ VInt.    Value ::= Integer;
 VFlo.    Value ::= Double;
 VStr.    Value ::= String;
 
-EILit.   Exp15 ::= Integer;
-EFLit.   Exp15 ::= Double;
-ESLit.   Exp15 ::= String;
-EBTLit.  Exp15 ::= "true";
-EBFLit.  Exp15 ::= "false";
-EVar.    Exp15 ::= Var;
+EILit.   Exp16 ::= Integer;
+EFLit.   Exp16 ::= Double;
+ESLit.   Exp16 ::= String;
+EBTLit.  Exp16 ::= "true";
+EBFLit.  Exp16 ::= "false";
+EVar.    Exp16 ::= Var;
+
+EFunInv. Exp15 ::= Ident "(" [Exp] ")";
 
 EPoInc.  Exp14 ::= Var "++";
 EPoDec.  Exp14 ::= Var "--";
@@ -64,5 +74,7 @@ EDisj.   Exp3 ::= Exp3 "||" Exp4 ;
 
 EAssign. Exp2 ::= Assign;
 
-coercions Exp 15 ;
+separator Exp ",";
+
+coercions Exp 16 ;
 
