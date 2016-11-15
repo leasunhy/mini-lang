@@ -11,12 +11,15 @@ import ErrM
 %name pProgram Program
 %name pType Type
 %name pStm Stm
+%name pParam Param
+%name pListParam ListParam
 %name pListStm ListStm
 %name pAssign Assign
 %name pListAssign ListAssign
 %name pVar Var
 %name pListVar ListVar
 %name pValue Value
+%name pExp16 Exp16
 %name pExp15 Exp15
 %name pExp14 Exp14
 %name pExp13 Exp13
@@ -27,6 +30,7 @@ import ErrM
 %name pExp4 Exp4
 %name pExp3 Exp3
 %name pExp2 Exp2
+%name pListExp ListExp
 %name pExp Exp
 %name pExp1 Exp1
 %name pExp5 Exp5
@@ -62,13 +66,14 @@ import ErrM
   'if' { PT _ (TS _ 23) }
   'int' { PT _ (TS _ 24) }
   'print' { PT _ (TS _ 25) }
-  'string' { PT _ (TS _ 26) }
-  'true' { PT _ (TS _ 27) }
-  'void' { PT _ (TS _ 28) }
-  'while' { PT _ (TS _ 29) }
-  '{' { PT _ (TS _ 30) }
-  '||' { PT _ (TS _ 31) }
-  '}' { PT _ (TS _ 32) }
+  'return' { PT _ (TS _ 26) }
+  'string' { PT _ (TS _ 27) }
+  'true' { PT _ (TS _ 28) }
+  'void' { PT _ (TS _ 29) }
+  'while' { PT _ (TS _ 30) }
+  '{' { PT _ (TS _ 31) }
+  '||' { PT _ (TS _ 32) }
+  '}' { PT _ (TS _ 33) }
 
 L_ident  { PT _ (TV $$) }
 L_integ  { PT _ (TI $$) }
@@ -96,12 +101,21 @@ Stm : Type ListAssign ';' { AbsMini.SDefi $1 $2 }
     | Type ListVar ';' { AbsMini.SDecl $1 $2 }
     | 'print' Exp ';' { AbsMini.SPrint $2 }
     | Assign ';' { AbsMini.SAssign $1 }
+    | 'return' Exp ';' { AbsMini.SRet $2 }
+    | 'return' ';' { AbsMini.SVRet }
     | 'while' '(' Exp ')' Stm { AbsMini.SWhile $3 $5 }
     | 'if' '(' Exp ')' Stm { AbsMini.SIf $3 $5 }
     | 'if' '(' Exp ')' Stm 'else' Stm { AbsMini.SIfElse $3 $5 $7 }
-    | '{' ListStm '}' { AbsMini.SBlock (reverse $2) }
     | Exp ';' { AbsMini.SExp $1 }
     | ';' { AbsMini.SEmpty }
+    | '{' ListStm '}' { AbsMini.SBlock (reverse $2) }
+    | Type Ident '(' ListParam ')' '{' ListStm '}' { AbsMini.SFunDfn $1 $2 $4 (reverse $7) }
+Param :: { Param }
+Param : Type Var { AbsMini.Param $1 $2 }
+ListParam :: { [Param] }
+ListParam : {- empty -} { [] }
+          | Param { (:[]) $1 }
+          | Param ',' ListParam { (:) $1 $3 }
 ListStm :: { [Stm] }
 ListStm : {- empty -} { [] } | ListStm Stm { flip (:) $1 $2 }
 Assign :: { Assign }
@@ -120,14 +134,17 @@ Value :: { Value }
 Value : Integer { AbsMini.VInt $1 }
       | Double { AbsMini.VFlo $1 }
       | String { AbsMini.VStr $1 }
-Exp15 :: { Exp }
-Exp15 : Integer { AbsMini.EILit $1 }
+Exp16 :: { Exp }
+Exp16 : Integer { AbsMini.EILit $1 }
       | Double { AbsMini.EFLit $1 }
       | String { AbsMini.ESLit $1 }
       | 'true' { AbsMini.EBTLit }
       | 'false' { AbsMini.EBFLit }
       | Var { AbsMini.EVar $1 }
       | '(' Exp ')' { $2 }
+Exp15 :: { Exp }
+Exp15 : Ident '(' ListExp ')' { AbsMini.EFunInv $1 $3 }
+      | Exp16 { $1 }
 Exp14 :: { Exp }
 Exp14 : Var '++' { AbsMini.EPoInc $1 }
       | Var '--' { AbsMini.EPoDec $1 }
@@ -160,6 +177,10 @@ Exp3 :: { Exp }
 Exp3 : Exp3 '||' Exp4 { AbsMini.EDisj $1 $3 } | Exp4 { $1 }
 Exp2 :: { Exp }
 Exp2 : Assign { AbsMini.EAssign $1 } | Exp3 { $1 }
+ListExp :: { [Exp] }
+ListExp : {- empty -} { [] }
+        | Exp { (:[]) $1 }
+        | Exp ',' ListExp { (:) $1 $3 }
 Exp :: { Exp }
 Exp : Exp1 { $1 }
 Exp1 :: { Exp }

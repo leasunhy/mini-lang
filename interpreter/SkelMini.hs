@@ -28,12 +28,18 @@ transStm x = case x of
   SDecl type_ vars -> failure x
   SPrint exp -> failure x
   SAssign assign -> failure x
+  SRet exp -> failure x
+  SVRet -> failure x
   SWhile exp stm -> failure x
   SIf exp stm -> failure x
   SIfElse exp stm1 stm2 -> failure x
-  SBlock stms -> failure x
   SExp exp -> failure x
   SEmpty -> failure x
+  SBlock stms -> failure x
+  SFunDfn type_ ident params stms -> failure x
+transParam :: Param -> Result
+transParam x = case x of
+  Param type_ var -> failure x
 transAssign :: Assign -> Result
 transAssign x = case x of
   Assign var exp -> failure x
@@ -53,6 +59,7 @@ transExp x = case x of
   EBTLit -> failure x
   EBFLit -> failure x
   EVar var -> failure x
+  EFunInv ident exps -> failure x
   EPoInc var -> failure x
   EPoDec var -> failure x
   EPrInc var -> failure x

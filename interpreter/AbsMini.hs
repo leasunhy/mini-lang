@@ -20,12 +20,18 @@ data Stm
     | SDecl Type [Var]
     | SPrint Exp
     | SAssign Assign
+    | SRet Exp
+    | SVRet
     | SWhile Exp Stm
     | SIf Exp Stm
     | SIfElse Exp Stm Stm
-    | SBlock [Stm]
     | SExp Exp
     | SEmpty
+    | SBlock [Stm]
+    | SFunDfn Type Ident [Param] [Stm]
+  deriving (Eq, Ord, Show, Read)
+
+data Param = Param Type Var
   deriving (Eq, Ord, Show, Read)
 
 data Assign = Assign Var Exp
@@ -44,6 +50,7 @@ data Exp
     | EBTLit
     | EBFLit
     | EVar Var
+    | EFunInv Ident [Exp]
     | EPoInc Var
     | EPoDec Var
     | EPrInc Var

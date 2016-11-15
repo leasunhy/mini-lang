@@ -39,12 +39,12 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 
 The reserved words used in mini are the following:
   | ``bool`` | ``double`` | ``else`` | ``false``
-  | ``if`` | ``int`` | ``print`` | ``string``
-  | ``true`` | ``void`` | ``while`` | 
+  | ``if`` | ``int`` | ``print`` | ``return``
+  | ``string`` | ``true`` | ``void`` | ``while``
 
 The symbols used in mini are the following:
   | ; | ( | ) | {
-  | } | = | , | ++
+  | } | , | = | ++
   | -- | - | * | /
   | + | < | <= | >
   | >= | == | != | &&
@@ -69,12 +69,19 @@ All other symbols are terminals.
   |  |  **|**  | //Type// //[Var]// ``;`` 
   |  |  **|**  | ``print`` //Exp// ``;`` 
   |  |  **|**  | //Assign// ``;`` 
+  |  |  **|**  | ``return`` //Exp// ``;`` 
+  |  |  **|**  | ``return`` ``;`` 
   |  |  **|**  | ``while`` ``(`` //Exp// ``)`` //Stm// 
   |  |  **|**  | ``if`` ``(`` //Exp// ``)`` //Stm// 
   |  |  **|**  | ``if`` ``(`` //Exp// ``)`` //Stm// ``else`` //Stm// 
-  |  |  **|**  | ``{`` //[Stm]// ``}`` 
   |  |  **|**  | //Exp// ``;`` 
   |  |  **|**  | ``;`` 
+  |  |  **|**  | ``{`` //[Stm]// ``}`` 
+  |  |  **|**  | //Type// //Ident// ``(`` //[Param]// ``)`` ``{`` //[Stm]// ``}`` 
+  | //Param// | -> | //Type// //Var// 
+  | //[Param]// | -> | **eps**
+  |  |  **|**  | //Param// 
+  |  |  **|**  | //Param// ``,`` //[Param]// 
   | //[Stm]// | -> | **eps**
   |  |  **|**  | //Stm// //[Stm]// 
   | //Assign// | -> | //Var// ``=`` //Exp// 
@@ -88,13 +95,15 @@ All other symbols are terminals.
   | //Value// | -> | //Integer// 
   |  |  **|**  | //Double// 
   |  |  **|**  | //String// 
-  | //Exp15// | -> | //Integer// 
+  | //Exp16// | -> | //Integer// 
   |  |  **|**  | //Double// 
   |  |  **|**  | //String// 
   |  |  **|**  | ``true`` 
   |  |  **|**  | ``false`` 
   |  |  **|**  | //Var// 
   |  |  **|**  | ``(`` //Exp// ``)`` 
+  | //Exp15// | -> | //Ident// ``(`` //[Exp]// ``)`` 
+  |  |  **|**  | //Exp16// 
   | //Exp14// | -> | //Var// ``++`` 
   |  |  **|**  | //Var// ``--`` 
   |  |  **|**  | ``++`` //Var// 
@@ -122,6 +131,9 @@ All other symbols are terminals.
   |  |  **|**  | //Exp4// 
   | //Exp2// | -> | //Assign// 
   |  |  **|**  | //Exp3// 
+  | //[Exp]// | -> | **eps**
+  |  |  **|**  | //Exp// 
+  |  |  **|**  | //Exp// ``,`` //[Exp]// 
   | //Exp// | -> | //Exp1// 
   | //Exp1// | -> | //Exp2// 
   | //Exp5// | -> | //Exp6// 

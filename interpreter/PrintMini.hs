@@ -101,14 +101,23 @@ instance Print Stm where
     SDecl type_ vars -> prPrec i 0 (concatD [prt 0 type_, prt 0 vars, doc (showString ";")])
     SPrint exp -> prPrec i 0 (concatD [doc (showString "print"), prt 0 exp, doc (showString ";")])
     SAssign assign -> prPrec i 0 (concatD [prt 0 assign, doc (showString ";")])
+    SRet exp -> prPrec i 0 (concatD [doc (showString "return"), prt 0 exp, doc (showString ";")])
+    SVRet -> prPrec i 0 (concatD [doc (showString "return"), doc (showString ";")])
     SWhile exp stm -> prPrec i 0 (concatD [doc (showString "while"), doc (showString "("), prt 0 exp, doc (showString ")"), prt 0 stm])
     SIf exp stm -> prPrec i 0 (concatD [doc (showString "if"), doc (showString "("), prt 0 exp, doc (showString ")"), prt 0 stm])
     SIfElse exp stm1 stm2 -> prPrec i 0 (concatD [doc (showString "if"), doc (showString "("), prt 0 exp, doc (showString ")"), prt 0 stm1, doc (showString "else"), prt 0 stm2])
-    SBlock stms -> prPrec i 0 (concatD [doc (showString "{"), prt 0 stms, doc (showString "}")])
     SExp exp -> prPrec i 0 (concatD [prt 0 exp, doc (showString ";")])
     SEmpty -> prPrec i 0 (concatD [doc (showString ";")])
+    SBlock stms -> prPrec i 0 (concatD [doc (showString "{"), prt 0 stms, doc (showString "}")])
+    SFunDfn type_ id params stms -> prPrec i 0 (concatD [prt 0 type_, prt 0 id, doc (showString "("), prt 0 params, doc (showString ")"), doc (showString "{"), prt 0 stms, doc (showString "}")])
   prtList _ [] = (concatD [])
   prtList _ (x:xs) = (concatD [prt 0 x, prt 0 xs])
+instance Print Param where
+  prt i e = case e of
+    Param type_ var -> prPrec i 0 (concatD [prt 0 type_, prt 0 var])
+  prtList _ [] = (concatD [])
+  prtList _ [x] = (concatD [prt 0 x])
+  prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ","), prt 0 xs])
 instance Print Assign where
   prt i e = case e of
     Assign var exp -> prPrec i 0 (concatD [prt 0 var, doc (showString "="), prt 0 exp])
@@ -129,12 +138,13 @@ instance Print Value where
 
 instance Print Exp where
   prt i e = case e of
-    EILit n -> prPrec i 15 (concatD [prt 0 n])
-    EFLit d -> prPrec i 15 (concatD [prt 0 d])
-    ESLit str -> prPrec i 15 (concatD [prt 0 str])
-    EBTLit -> prPrec i 15 (concatD [doc (showString "true")])
-    EBFLit -> prPrec i 15 (concatD [doc (showString "false")])
-    EVar var -> prPrec i 15 (concatD [prt 0 var])
+    EILit n -> prPrec i 16 (concatD [prt 0 n])
+    EFLit d -> prPrec i 16 (concatD [prt 0 d])
+    ESLit str -> prPrec i 16 (concatD [prt 0 str])
+    EBTLit -> prPrec i 16 (concatD [doc (showString "true")])
+    EBFLit -> prPrec i 16 (concatD [doc (showString "false")])
+    EVar var -> prPrec i 16 (concatD [prt 0 var])
+    EFunInv id exps -> prPrec i 15 (concatD [prt 0 id, doc (showString "("), prt 0 exps, doc (showString ")")])
     EPoInc var -> prPrec i 14 (concatD [prt 0 var, doc (showString "++")])
     EPoDec var -> prPrec i 14 (concatD [prt 0 var, doc (showString "--")])
     EPrInc var -> prPrec i 14 (concatD [doc (showString "++"), prt 0 var])
@@ -153,5 +163,7 @@ instance Print Exp where
     EConj exp1 exp2 -> prPrec i 4 (concatD [prt 4 exp1, doc (showString "&&"), prt 8 exp2])
     EDisj exp1 exp2 -> prPrec i 3 (concatD [prt 3 exp1, doc (showString "||"), prt 4 exp2])
     EAssign assign -> prPrec i 2 (concatD [prt 0 assign])
-
+  prtList _ [] = (concatD [])
+  prtList _ [x] = (concatD [prt 0 x])
+  prtList _ (x:xs) = (concatD [prt 0 x, doc (showString ","), prt 0 xs])
 
