@@ -59,6 +59,25 @@ evalBool e = do
     VInt int  -> return (int /= 0)
     otherwise -> return (True)
 
+manipVar :: (Value -> Value) -> Var -> Action (Value, Value)
+manipVar func x = do
+  orival <- lookupVar x
+  newval <- func orival
+  updateVar x newval
+  return (orival, newval)
+
+operateOnVals forInt forFlo forStr v1 v2 = case (v1, v2) of
+  ((VInt i1), (VInt i2)) -> forInt i1 i2
+  ((VFlo f1), (VFlo f2)) -> forFlo f1 f2
+  ((VStr s1), (VStr s2)) -> forStr s1 s2
+  otherwise -> error "operand types mismatch"
+
+returnVal :: (a -> Value) -> (a -> a -> a) -> a -> a -> Action Value
+returnVal ctor func v1 v2 = return (ctor (func v1 v2))
+
+errorVal :: String -> a -> a -> Action Value
+errorVal msg v1 v2 = error msg
+
 eval :: Exp -> Action Value
 eval e = case e of
   EILit v  -> return (VInt v)
@@ -67,26 +86,10 @@ eval e = case e of
   EBTLit   -> return (VInt 1)
   EBFLit   -> return (VInt 0)
   EVar v   -> lookupVar v
-  EPoInc v -> do
-    orival <- lookupVar v
-    newval <- incval orival
-    updateVar v newval
-    return (orival)
-  EPoDec v -> do
-    orival <- lookupVar v
-    newval <- decval orival
-    updateVar v newval
-    return (orival)
-  EPrInc v -> do
-    orival <- lookupVar v
-    newval <- incval orival
-    updateVar v newval
-    return (newval)
-  EPrDec v -> do
-    orival <- lookupVar v
-    newval <- decval orival
-    updateVar v newval
-    return (newval)
+  EPoInc v -> fst $ manipVar incval v
+  EPoDec v -> fst $ manipVar decval v
+  EPrInc v -> snd $ manipVar incval v
+  EPrDec v -> snd $ manipVar decval v
   ENegate e -> do
     val <- eval e
     case val of
@@ -97,90 +100,59 @@ eval e = case e of
     v1 <- eval exp1
     v2 <- eval exp2
     case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (VInt (i1 + i2))
-      ((VFlo f1), (VFlo f2)) -> return (VFlo (f1 + f2))
-      ((VStr s1), (VStr s2)) -> return (VStr (s1 ++ s2))
-      otherwise -> error "operand type mismatch"
+      ((VInt i), (VStr s)) -> return (VStr (show i ++ s))
+      ((VStr s), (VInt i)) -> return (VStr (s ++ (show i)))
+      otherwise -> operateOnVals (returnVal (+)) (returnVal (+)) (returnVal (++)) v1 v2
   ESub exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (VInt (i1 - i2))
-      ((VFlo f1), (VFlo f2)) -> return (VFlo (f1 - f2))
-      ((VStr s1), (VStr s2)) -> error "operator '-' is not defined on strings"
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal (-)) (returnVal (-)) (errorVal "operator '-' is not defined on strings") v1 v2
   EMul exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (VInt (i1 * i2))
-      ((VFlo f1), (VFlo f2)) -> return (VFlo (f1 * f2))
-      ((VStr s1), (VStr s2)) -> error "operator '*' is not defined on strings"
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal (*)) (returnVal (*)) (errorVal "operator '*' is not defined on strings") v1 v2
   EDiv exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (VInt (i1 `div` i2))
-      ((VFlo f1), (VFlo f2)) -> return (VFlo (f1 / f2))
-      ((VStr s1), (VStr s2)) -> error "operator '/' is not defined on strings"
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal div) (returnVal (/)) (errorVal "operator '/' is not defined on strings") v1 v2
   EOrdLT exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (booltoVInt $ i1 < i2)
-      ((VFlo f1), (VFlo f2)) -> return (booltoVInt $ f1 < f2)
-      ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 < s2)
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal (<)) (returnVal (<)) (returnVal (<)) v1 v2
   EOrdLE exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (booltoVInt $ i1 <= i2)
-      ((VFlo f1), (VFlo f2)) -> return (booltoVInt $ f1 <= f2)
-      ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 <= s2)
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal (<=)) (returnVal (<=)) (returnVal (<=)) v1 v2
   EOrdGT exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (booltoVInt $ i1 > i2)
-      ((VFlo f1), (VFlo f2)) -> return (booltoVInt $ f1 > f2)
-      ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 > s2)
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal (>)) (returnVal (>)) (returnVal (>)) v1 v2
   EOrdGE exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (booltoVInt $ i1 >= i2)
-      ((VFlo f1), (VFlo f2)) -> return (booltoVInt $ f1 >= f2)
-      ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 >= s2)
-      otherwise -> error "operand type mismatch"
+    operateOnVals (returnVal (>=)) (returnVal (>=)) (returnVal (>=)) v1 v2
   EOrdEQ exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (booltoVInt $ i1 == i2)
-      ((VFlo f1), (VFlo f2)) -> return (booltoVInt $ f1 == f2)
-      ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 == s2)
-      otherwise -> error "operand type mismatch"
+    return (booltoVInt $ v1 == v2)
   EOrdNE exp1 exp2 -> do
     v1 <- eval exp1
     v2 <- eval exp2
-    case (v1, v2) of
-      ((VInt i1), (VInt i2)) -> return (booltoVInt $ i1 /= i2)
-      ((VFlo f1), (VFlo f2)) -> return (booltoVInt $ f1 /= f2)
-      ((VStr s1), (VStr s2)) -> return (booltoVInt $ s1 /= s2)
-      otherwise -> error "operand type mismatch"
+    return (booltoVInt $ i1 /= i2)
   EConj exp1 exp2 -> do
     v1 <- evalBool exp1
-    v2 <- evalBool exp2
-    return (booltoVInt $ v1 && v2)
+    if v1 then do
+        v2 <- evalBool exp2
+        return (booltoVInt v2)
+    else
+        return (booltoVInt v1)
   EDisj exp1 exp2 -> do
     v1 <- evalBool exp1
-    v2 <- evalBool exp2
-    return (booltoVInt $ v1 || v2)
+    if not v1 then do
+        v2 <- evalBool exp2
+        return (booltoVInt v2)
+    else
+        return (booltoVInt v1)
   EAssign (Assign v e) -> do
     val <- eval e
     updateVar v val
