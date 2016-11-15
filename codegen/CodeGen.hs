@@ -129,7 +129,7 @@ handleSameType forInt forFlo forStr t1 t2 = case (t1, t2) of
 compileExp :: Exp -> Action Type
 compileExp e = case e of
   EILit v  -> do emit ("ldc " ++ show v); return Type_int
-  EFLit v  -> do emit ("ldc " ++ show v); return Type_double
+  EFLit v  -> do emit ("ldc2_w " ++ show v); return Type_double
   ESLit v  -> do emit ("ldc " ++ show v); return Type_string
   EBTLit   -> do emit "iconst_1"; return Type_int
   EBFLit   -> do emit "iconst_0"; return Type_int
@@ -352,7 +352,8 @@ declareVar _ Type_void = error "a variable can not be void!"
 declareVar x Type_bool = declareVar x Type_int
 declareVar x t = modify (\s ->
   s{contexts = Map.insert x (VarInfo t (nextvar s)) (head $ contexts s) : (tail $ contexts s),
-    nextvar = nextvar s + 1
+    -- double needs two registers to store ;-)
+    nextvar = nextvar s + 2
   })
 
 -- lookup the value of a variable
