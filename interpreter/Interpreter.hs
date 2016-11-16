@@ -317,9 +317,11 @@ invokeFun funname args = do
       let (Function _ plist body) = fun in
         if length args == length plist then do
           pushCtx
+          pushFCtx
           mapM_ (\((Param t v), exp) -> do val <- eval exp; updateVar v val) $ zip plist args
           forEach body (\stm -> do sret <- gets shouldret
                                    if not sret then exec stm else return ())
+          popFCtx
           popCtx
           modify (\s -> s{shouldret = False})
           ret <- gets returnval
