@@ -53,10 +53,6 @@ compileFuncDfn (SFunDfn rettype funname plist body) = do
     emit $ getfuncfinale True Type_int
   else
     emit $ getfuncfinale True rettype
-  --if rettype == Type_void then
-  --  emit $ unlines ["return", ".end method"]
-  --else
-  --  emit $ ".end method"
 compileFuncDfn _ = return ()
 
 compileStm :: Stm -> Action Void
@@ -205,7 +201,9 @@ compileExp e = case e of
         emit ("invokestatic MiniRuntime/add(Ljava/lang/String;I)Ljava/lang/String;")
         return Type_string
       otherwise ->
-        handleSameType (emit "iadd") (emit "dadd") (emit "invokestatic MiniRuntime/add(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;") t1 t2
+        handleSameType (emit "iadd") (emit "dadd")
+                       (emit "invokestatic MiniRuntime/add(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")
+                       t1 t2
   ESub exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
@@ -221,27 +219,45 @@ compileExp e = case e of
   EOrdLT exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
-    handleSameType (emit "invokestatic MiniRuntime/lt(II)Z") (emit "invokestatic MiniRuntime/lt(DD)Z") (emit "invokestatic MiniRuntime/lt(Ljava/lang/String;Ljava/lang/String;)Z") t1 t2
+    handleSameType (emit "invokestatic MiniRuntime/lt(II)Z")
+                   (emit "invokestatic MiniRuntime/lt(DD)Z")
+                   (emit "invokestatic MiniRuntime/lt(Ljava/lang/String;Ljava/lang/String;)Z")
+                   t1 t2
   EOrdLE exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
-    handleSameType (emit "invokestatic MiniRuntime/le(II)Z") (emit "invokestatic MiniRuntime/le(DD)Z") (emit "invokestatic MiniRuntime/le(Ljava/lang/String;Ljava/lang/String;)Z") t1 t2
+    handleSameType (emit "invokestatic MiniRuntime/le(II)Z")
+                   (emit "invokestatic MiniRuntime/le(DD)Z")
+                   (emit "invokestatic MiniRuntime/le(Ljava/lang/String;Ljava/lang/String;)Z")
+                   t1 t2
   EOrdGT exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
-    handleSameType (emit "invokestatic MiniRuntime/gt(II)Z") (emit "invokestatic MiniRuntime/gt(DD)Z") (emit "invokestatic MiniRuntime/gt(Ljava/lang/String;Ljava/lang/String;)Z") t1 t2
+    handleSameType (emit "invokestatic MiniRuntime/gt(II)Z")
+                   (emit "invokestatic MiniRuntime/gt(DD)Z")
+                   (emit "invokestatic MiniRuntime/gt(Ljava/lang/String;Ljava/lang/String;)Z")
+                   t1 t2
   EOrdGE exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
-    handleSameType (emit "invokestatic MiniRuntime/ge(II)Z") (emit "invokestatic MiniRuntime/ge(DD)Z") (emit "invokestatic MiniRuntime/ge(Ljava/lang/String;Ljava/lang/String;)Z") t1 t2
+    handleSameType (emit "invokestatic MiniRuntime/ge(II)Z")
+                   (emit "invokestatic MiniRuntime/ge(DD)Z")
+                   (emit "invokestatic MiniRuntime/ge(Ljava/lang/String;Ljava/lang/String;)Z")
+                   t1 t2
   EOrdEQ exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
-    handleSameType (emit "invokestatic MiniRuntime/eq(II)Z") (emit "invokestatic MiniRuntime/eq(DD)Z") (emit "invokestatic MiniRuntime/eq(Ljava/lang/String;Ljava/lang/String;)Z") t1 t2
+    handleSameType (emit "invokestatic MiniRuntime/eq(II)Z")
+                   (emit "invokestatic MiniRuntime/eq(DD)Z")
+                   (emit "invokestatic MiniRuntime/eq(Ljava/lang/String;Ljava/lang/String;)Z")
+                   t1 t2
   EOrdNE exp1 exp2 -> do
     t1 <- compileExp exp1
     t2 <- compileExp exp2
-    handleSameType (emit "invokestatic MiniRuntime/ne(II)Z") (emit "invokestatic MiniRuntime/ne(DD)Z") (emit "invokestatic MiniRuntime/ne(Ljava/lang/String;Ljava/lang/String;)Z") t1 t2
+    handleSameType (emit "invokestatic MiniRuntime/ne(II)Z")
+                   (emit "invokestatic MiniRuntime/ne(DD)Z")
+                   (emit "invokestatic MiniRuntime/ne(Ljava/lang/String;Ljava/lang/String;)Z")
+                   t1 t2
   EConj exp1 exp2 -> do
     curlabel <- getnextlabel
     let label = "CMINIL" ++ show curlabel
@@ -374,11 +390,13 @@ popCtx = modify (\s -> s{contexts = tail $ contexts s})
 
 -- push a new context into the context stack
 pushCtxForFunc :: Action Void
-pushCtxForFunc = modify (\s -> s{contexts = Map.empty : (contexts s), nextvar = 0 : nextvar s})
+pushCtxForFunc =
+  modify (\s -> s{contexts = Map.empty : (contexts s), nextvar = 0 : nextvar s})
 
 -- pop a context from the context stack
 popCtxForFunc :: Action Void
-popCtxForFunc = modify (\s -> s{contexts = tail $ contexts s, nextvar = tail $ nextvar s})
+popCtxForFunc =
+  modify (\s -> s{contexts = tail $ contexts s, nextvar = tail $ nextvar s})
 
 -- lookup the first (innermost) context that contains the specified variable
 --   if found, returns a "partition" of the context; otherwise, returns (head, tail)
@@ -390,19 +408,20 @@ lookupCtx x = do
       (context:tails) -> return (Left  (inits, context, tails))
       []              -> return (Right (head cons, tail cons))
 
+-- declare a variable whose length is `l`
+declareVarH :: Var -> Type -> Int -> Action Void
+declareVarH x t l = modify (\s ->
+  s{contexts =
+      Map.insert x (VarInfo t (head $ nextvar s)) (head $ contexts s) : (tail $ contexts s),
+    nextvar = (head $ nextvar s) + l : (tail $ nextvar s)
+  })
+
 -- declare a variable
 declareVar :: Var -> Type -> Action Void
 declareVar _ Type_void = error "a variable can not be void!"
 declareVar x Type_bool = declareVar x Type_int
-declareVar x t@Type_double = modify (\s ->
-  s{contexts = Map.insert x (VarInfo t (head $ nextvar s)) (head $ contexts s) : (tail $ contexts s),
-    -- double needs two registers to store ;-)
-    nextvar = (head $ nextvar s) + 2 : (tail $ nextvar s)
-  })
-declareVar x t = modify (\s ->
-  s{contexts = Map.insert x (VarInfo t (head $ nextvar s)) (head $ contexts s) : (tail $ contexts s),
-    nextvar = (head $ nextvar s) + 1 : (tail $ nextvar s)
-  })
+declareVar x t@Type_double = declareVarH x t 2
+declareVar x t = declareVarH x t 1
 
 -- lookup the value of a variable
 lookupVar :: Var -> Action VarInfo
@@ -434,7 +453,8 @@ popFCtx = modify (\s -> s{functxs = tail $ functxs s})
 
 -- lookup the first (innermost) context that contains the specified function
 --   if found, returns a "partition" of the context; otherwise, returns (head, tail)
-lookupFCtx :: Ident -> Action (Either ([FunContext], FunContext, [FunContext]) (FunContext, [FunContext]))
+lookupFCtx :: Ident ->
+  Action (Either ([FunContext], FunContext, [FunContext]) (FunContext, [FunContext]))
 lookupFCtx x = do
   cons <- gets functxs
   let (inits, remains) = span (Map.notMember x) cons in
@@ -466,7 +486,9 @@ getnextlabel = do
 
 -- get function declaration pseudo instructions
 getfuncprelude :: Ident -> Type -> [Param] -> String
-getfuncprelude name rettype plist = unlines $ (".method public static " ++ getfuncspec name rettype plist) : commonMethodPrelude
+getfuncprelude name rettype plist =
+  unlines $ (".method public static " ++ getfuncspec name rettype plist) :
+    commonMethodPrelude
 
 -- get function ending instructions
 getfuncfinale :: Bool -> Type -> String
@@ -481,8 +503,10 @@ getfuncfinale False rettype = ".end method"
 
 -- get method spec for jvm
 getfuncspec :: Ident -> Type -> [Param] -> String
-getfuncspec (Ident "main") rettype plist = getfuncspec (Ident "_main") rettype plist
-getfuncspec (Ident name) rettype plist = name ++ "(" ++ (concat $ map (\(Param t _) -> gettypespec t) plist) ++ ")" ++ gettypespec rettype
+getfuncspec (Ident "main") t p = getfuncspec (Ident "_main") t p
+getfuncspec (Ident name) rettype plist =
+  name ++ "(" ++ (concat $ map (\(Param t _) -> gettypespec t) plist) ++ ")" ++
+    gettypespec rettype
 
 -- get qualified method spec for jvm
 getqualfuncspec :: Ident -> Type -> [Param] -> String
@@ -503,7 +527,6 @@ emit i = modify (\s ->
   )
 
 -- boilerplate code
-
 classPrelude = unlines [
   ".class public Foo",
   ".super java/lang/Object",
