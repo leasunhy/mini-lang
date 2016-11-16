@@ -13,14 +13,51 @@ genCodeForProgram :: Program -> Action Void
 genCodeForProgram p = case p of
   PStms ss -> do
     emit classPrelude
-    emit mainMethodPrelude
-    forEach ss compileStm
-    emit "return"
-    emit ".end method"
-    -- maybemain <- lookupFun (Ident "main")
-    -- case maybemain of
-    --   Just fun -> do invokeFun (Ident "main") []; return ()
-    --   Nothing  -> return ()
+    forEach ss preprocessFuncDfn
+    forEach ss compileFuncDfn
+    maybemain <- lookupFun (Ident "_main")
+    case maybemain of
+        Just (Function _ _ spec) -> do
+          emit mainMethodPrelude
+          emit $ "invokestatic " ++ spec
+          emit "return"
+          emit ".end method"
+        Nothing  -> do
+          emit mainMethodPrelude
+          forEach ss compileStm
+          emit "return"
+          emit ".end method"
+
+preprocessFuncDfn :: Stm -> Action Void
+preprocessFuncDfn (SFunDfn rettype funname plist body) = do
+  defineFun funname (Function rettype plist (getqualfuncspec funname rettype plist))
+preprocessFuncDfn _ = return ()
+
+modifyBodyForIllegalMain :: Stm -> Stm
+modifyBodyForIllegalMain SVRet = SRet (EILit 0)
+modifyBodyForIllegalMain stm = stm
+
+compileFuncDfn :: Stm -> Action Void
+compileFuncDfn (SFunDfn rettype funname plist body) = do
+  emit $ getfuncprelude funname rettype plist
+  pushCtxForFunc
+  forEach plist (\(Param t x) -> declareVar x t)
+  if funname == Ident "main" && rettype == Type_int then
+    let modifiedbody = map modifyBodyForIllegalMain body in
+      forEach modifiedbody compileStm
+  else
+    forEach body compileStm
+  popCtxForFunc
+  if funname == Ident "main" && rettype == Type_int then do
+    emit $ "iconst_0"
+    emit $ getfuncfinale True Type_int
+  else
+    emit $ getfuncfinale True rettype
+  --if rettype == Type_void then
+  --  emit $ unlines ["return", ".end method"]
+  --else
+  --  emit $ ".end method"
+compileFuncDfn _ = return ()
 
 compileStm :: Stm -> Action Void
 compileStm s = case s of
@@ -111,13 +148,12 @@ compileStm s = case s of
     popFCtx
     popCtx
   SExp exp -> do
-    compileExp exp
+    t <- compileExp exp
     -- discard the result
-    emit "pop"
-    return ()
+    if t == Type_void then return ()
+    else emit "pop"
   SEmpty -> return ()
-  SFunDfn rettype funname paramlist body -> return ()
-    -- defineFun funname (Function rettype paramlist body)
+  otherwise -> return ()
 
 handleSameType forInt forFlo forStr t1 t2 = case (t1, t2) of
   (Type_int, Type_int) -> do forInt; return Type_int
@@ -142,7 +178,7 @@ compileExp e = case e of
       Just (Function rettype plist spec) -> do
         if length plist == length args then do
           mapM_ compileExp args
-          emit $ "invokestatic Foo/" ++ spec
+          emit $ "invokestatic " ++ spec
           return rettype
         else error $ "no viable overload for " ++ show funname ++ " is found"
       Nothing -> error $ "no function named " ++ show funname ++ " is found"
@@ -318,7 +354,7 @@ data Env = ENV {
   contexts       :: [Context],
   instructions   :: [String],
   functxs        :: [FunContext],
-  nextvar        :: Int,
+  nextvar        :: [Int],
   nextlabel      :: Int
   }
 
@@ -326,7 +362,7 @@ data Env = ENV {
 
 -- initial environment
 initEnv :: Env
-initEnv = ENV [Map.empty] [] [Map.empty] 5 0
+initEnv = ENV [Map.empty] [] [Map.empty] [0] 0
 
 -- push a new context into the context stack
 pushCtx :: Action Void
@@ -335,6 +371,14 @@ pushCtx = modify (\s -> s{contexts = Map.empty : (contexts s)})
 -- pop a context from the context stack
 popCtx :: Action Void
 popCtx = modify (\s -> s{contexts = tail $ contexts s})
+
+-- push a new context into the context stack
+pushCtxForFunc :: Action Void
+pushCtxForFunc = modify (\s -> s{contexts = Map.empty : (contexts s), nextvar = 0 : nextvar s})
+
+-- pop a context from the context stack
+popCtxForFunc :: Action Void
+popCtxForFunc = modify (\s -> s{contexts = tail $ contexts s, nextvar = tail $ nextvar s})
 
 -- lookup the first (innermost) context that contains the specified variable
 --   if found, returns a "partition" of the context; otherwise, returns (head, tail)
@@ -350,10 +394,14 @@ lookupCtx x = do
 declareVar :: Var -> Type -> Action Void
 declareVar _ Type_void = error "a variable can not be void!"
 declareVar x Type_bool = declareVar x Type_int
-declareVar x t = modify (\s ->
-  s{contexts = Map.insert x (VarInfo t (nextvar s)) (head $ contexts s) : (tail $ contexts s),
+declareVar x t@Type_double = modify (\s ->
+  s{contexts = Map.insert x (VarInfo t (head $ nextvar s)) (head $ contexts s) : (tail $ contexts s),
     -- double needs two registers to store ;-)
-    nextvar = nextvar s + 2
+    nextvar = (head $ nextvar s) + 2 : (tail $ nextvar s)
+  })
+declareVar x t = modify (\s ->
+  s{contexts = Map.insert x (VarInfo t (head $ nextvar s)) (head $ contexts s) : (tail $ contexts s),
+    nextvar = (head $ nextvar s) + 1 : (tail $ nextvar s)
   })
 
 -- lookup the value of a variable
@@ -396,11 +444,13 @@ lookupFCtx x = do
 
 -- define a function
 defineFun :: Ident -> Function -> Action Void
+defineFun (Ident "main") mv = defineFun (Ident "_main") mv
 defineFun x mv = modify (\s ->
         s{functxs = Map.insert x mv (head $ functxs s) : (tail $ functxs s)})
 
 -- lookup a function
 lookupFun :: Ident -> Action (Maybe Function)
+lookupFun (Ident "main") = lookupFun (Ident "_main")
 lookupFun x = do
   cons <- lookupFCtx x
   case cons of
@@ -413,6 +463,38 @@ getnextlabel = do
   cur <- gets nextlabel
   modify (\s -> s{nextlabel = cur + 1})
   return cur
+
+-- get function declaration pseudo instructions
+getfuncprelude :: Ident -> Type -> [Param] -> String
+getfuncprelude name rettype plist = unlines $ (".method public static " ++ getfuncspec name rettype plist) : commonMethodPrelude
+
+-- get function ending instructions
+getfuncfinale :: Bool -> Type -> String
+getfuncfinale True rettype = unlines [retstm, ".end method"]
+    where retstm = case rettype of
+                     Type_int    -> "ireturn"
+                     Type_bool   -> "ireturn"
+                     Type_double -> "dreturn"
+                     Type_string -> "areturn"
+                     Type_void   -> "return"
+getfuncfinale False rettype = ".end method"
+
+-- get method spec for jvm
+getfuncspec :: Ident -> Type -> [Param] -> String
+getfuncspec (Ident "main") rettype plist = getfuncspec (Ident "_main") rettype plist
+getfuncspec (Ident name) rettype plist = name ++ "(" ++ (concat $ map (\(Param t _) -> gettypespec t) plist) ++ ")" ++ gettypespec rettype
+
+-- get qualified method spec for jvm
+getqualfuncspec :: Ident -> Type -> [Param] -> String
+getqualfuncspec name rettype plist = "Foo/" ++ getfuncspec name rettype plist
+
+-- get type spec for a type
+gettypespec :: Type -> String
+gettypespec Type_int = "I"
+gettypespec Type_bool = "I"
+gettypespec Type_double = "D"
+gettypespec Type_string = "Ljava/lang/String;"
+gettypespec Type_void = "V"
 
 -- emit instructions
 emit :: String -> Action Void
@@ -434,6 +516,11 @@ classPrelude = unlines [
 
 mainMethodPrelude = unlines [
   ".method public static main([Ljava/lang/String;)V",
+  ".limit locals 100",
+  ".limit stack 1000"
+  ]
+
+commonMethodPrelude = [
   ".limit locals 100",
   ".limit stack 1000"
   ]
