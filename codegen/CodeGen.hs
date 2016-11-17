@@ -146,8 +146,10 @@ compileStm s = case s of
   SExp exp -> do
     t <- compileExp exp
     -- discard the result
-    if t == Type_void then return ()
-    else emit "pop"
+    case t of
+      Type_void -> return ()
+      Type_double -> emit "pop2"
+      otherwise -> emit "pop"
   SEmpty -> return ()
   otherwise -> return ()
 
@@ -295,7 +297,8 @@ compileExp e = case e of
   EAssign (Assign v e) -> do
     vi <- lookupVar v
     et <- compileExp e
-    emit "dup"
+    if et == Type_double then emit "dup2"
+    else emit "dup"
     let (VarInfo vt _) = vi in
       if vt == et then storevar vi
       else error "operands of an assignment are not of the same type"
