@@ -295,6 +295,7 @@ compileExp e = case e of
   EAssign (Assign v e) -> do
     vi <- lookupVar v
     et <- compileExp e
+    emit "dup"
     let (VarInfo vt _) = vi in
       if vt == et then storevar vi
       else error "operands of an assignment are not of the same type"
